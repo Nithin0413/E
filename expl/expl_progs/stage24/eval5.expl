@@ -1,0 +1,43 @@
+int main() 
+{
+  decl
+    str fileName1, fileName2, word;
+    int fd1,fd2, temp,toggle;
+  enddecl
+
+  begin
+    write("Filename 1:");
+    read(fileName1);
+    write("Filename 2:");
+    read(fileName2);
+    fd1 = exposcall("Open", fileName1);
+    fd2 = exposcall("Open", fileName2);
+    if(fd1<0) then
+      write("Open fail");
+    else
+      temp = exposcall("Read", fd1, word);
+      toggle = -1;
+      while(temp == 0) do
+        write(word);
+        if(toggle == 1) then
+            temp = exposcall("Read", fd2, word);
+        else
+            temp = exposcall("Read", fd1, word);
+        endif;
+        if(temp != 0) then
+            if(toggle == 1) then
+                temp = exposcall("Read", fd1, word);
+            else
+                temp = exposcall("Read", fd2, word);
+            endif;
+        endif;
+        toggle = toggle * -1;
+      endwhile;
+      write("-- End --");
+      temp = exposcall("Close", fd1);
+      temp = exposcall("Close", fd2);
+    endif;
+
+    return 0;
+ end
+}

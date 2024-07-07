@@ -1,0 +1,151 @@
+// MODULE 0
+//print "MOD 0 called";
+
+alias functionNum R1;
+alias currentPID R2;
+
+// ACQUIRE DISK
+if(functionNum == 3) then
+
+	while([DISK_STATUS_TABLE] == 1) do
+		[PROCESS_TABLE + (currentPID*16) + 4] = WAIT_DISK;
+		
+		multipush(R1,R2);
+		call MOD_5;
+		multipop(R1,R2);
+		
+	endwhile;
+	
+	// Locking the Disk
+	[DISK_STATUS_TABLE + 0] = 1;
+	[DISK_STATUS_TABLE + 4] = currentPID;
+	return;
+	
+endif;
+
+// ACQUIRE INODE - Basically locking the file
+if (functionNum == 4) then
+    alias inode_index R3; //Argument
+    // Busy Loop - Checking whether file is locked or not
+    while ([FILE_STATUS_TABLE + inode_index*4]!=-1) do
+        [PROCESS_TABLE +currentPID*16 +4]=WAIT_FILE;
+        [PROCESS_TABLE +currentPID*16 +5]=inode_index;
+
+        multipush(R1,R2,R3);
+        call MOD_5;
+        multipop(R1,R2,R3);
+    endwhile;
+    // Checking whether file is empty or not
+    if([FILE_STATUS_TABLE +inode_index*4 +1]==-1) then
+        R0 =-1;
+        return;
+    endif;
+
+    // Locking File Status Table
+    [FILE_STATUS_TABLE +inode_index*4] = currentPID;
+    R0=0;
+    return;
+endif;
+
+// RELEASE INODE
+if (functionNum == 5) then
+    alias inode_index R3; //Argument
+
+    // If releasing is not done by current currentPID
+    if([FILE_STATUS_TABLE + inode_index*4] != currentPID) then
+		R0 = -1;
+		return;
+	endif;
+
+    [FILE_STATUS_TABLE +inode_index*4]=-1;
+
+    alias it R4;
+    it =0;
+    while (it<16) do
+        if([PROCESS_TABLE +it*16 +4]== WAIT_FILE && [PROCESS_TABLE +it*16 +5] == inode_index) then
+            [PROCESS_TABLE +it*16 +4] = READY;
+        endif;
+        it =it +1;
+    endwhile;
+
+    R0=0;
+    return;
+endif;
+
+
+// ACQUIRE SEMAPHORE
+if( functionNum == 6 ) then
+    alias it R3;
+    it=0;
+    while(it <MAX_SEM_COUNT) do
+        if([SEMAPHORE_TABLE +it*4 +1]==0) then
+            [SEMAPHORE_TABLE +it*4 +1]=1;
+            [SEMAPHORE_TABLE +it*4]=-1;
+            R0 = it;
+            return;
+        endif;
+        it = it+1;
+    endwhile;
+    R0=-1;
+    return;
+endif ;
+
+// RELEASE SEMAPHORE
+if( functionNum ==7 ) then
+    alias sem_id R3; // Argument
+    alias iter R4;
+
+    if( [SEMAPHORE_TABLE + 4*sem_id] == currentPID) then
+		[SEMAPHORE_TABLE + 4*sem_id] = -1;
+		iter = 0;
+		while(iter < 16) do
+			if(([PROCESS_TABLE + iter * 16 + 4] == WAIT_SEMAPHORE) && ([PROCESS_TABLE + iter * 16 + 5] == sem_id)) then
+				[PROCESS_TABLE + iter * 16 + 4] = READY;
+			endif;
+			iter = iter + 1;
+		endwhile;
+		
+		[SEMAPHORE_TABLE + 4*sem_id + 1] = [SEMAPHORE_TABLE + 4*sem_id + 1] - 1;
+	endif;
+	
+	R0 = 0;
+	return;
+endif ;
+
+
+// ACQUIRE TERMINAL 
+if (functionNum==8) then
+    // Check whether terminal is free in a loop
+    while([TERMINAL_STATUS_TABLE]==1) do
+        [PROCESS_TABLE + currentPID*16 + 4]= WAIT_TERMINAL;
+        multipush(R1,R2);
+        call MOD_5;
+        multipop(R1,R2);
+    endwhile;
+    //print "Terminal_free";
+    [TERMINAL_STATUS_TABLE] = 1;
+	[TERMINAL_STATUS_TABLE+1] = currentPID;
+    return;
+endif;
+
+// RELEASE TERMINAL
+if (functionNum==9) then
+    if([TERMINAL_STATUS_TABLE+1]!=currentPID) then
+        R0 =-1;
+        return;
+    endif;
+    [TERMINAL_STATUS_TABLE]=0;
+    alias pno R0;
+    pno=0;
+    while(pno<16) do
+        if([PROCESS_TABLE + pno*16 +4]==WAIT_TERMINAL) then
+            [PROCESS_TABLE + pno*16 +4]=READY;
+        endif;
+        pno=pno+1;
+    endwhile;
+    // saving the return value 0 indicating successful
+    R0=0;
+    return;
+endif;
+
+

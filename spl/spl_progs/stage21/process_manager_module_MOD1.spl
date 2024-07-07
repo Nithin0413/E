@@ -1,0 +1,148 @@
+// MODULE 1
+//print "MOD 1";
+alias function_number R1;
+alias current_pid R2;
+
+current_pid = [SYSTEM_STATUS_TABLE +1];
+
+// GET PCB ENTRY 
+if( function_number == 1) then
+    alias it R3;
+    it = 0;
+    while(it <16) do
+        if([PROCESS_TABLE +it*16 + 4]==TERMINATED) then
+            R0=it;
+            break;
+        endif;
+        it=it+1;
+    endwhile;
+    [PROCESS_TABLE + (it * 16) + 1] = it;
+	[PROCESS_TABLE + (it * 16) + 4] = ALLOCATED;
+	[PROCESS_TABLE + (it * 16) + 14] = PAGE_TABLE_BASE + (it * 20);
+	[PROCESS_TABLE + (it * 16) + 15] = 10;
+    return;
+endif;
+
+
+
+
+// FREE USER AREA PAGE
+if( function_number ==2 ) then
+    alias user_area R3;
+    user_area = [PROCESS_TABLE + current_pid*16 +11 ];
+    // Release Page
+    backup;
+    R1=2;
+    R2=user_area;
+    call MOD_2 ;
+    restore;
+    return;
+endif ;
+
+// EXIT PROCESS
+if( function_number== 3) then
+    // Free page Table
+    backup;
+    R1=4;
+    R2=[SYSTEM_STATUS_TABLE +1];
+    call MOD_1 ;
+    restore;
+
+    //Free User Area Page
+	backup;
+	R1 = 2;
+    R2=[SYSTEM_STATUS_TABLE +1];
+	call MOD_1; 
+	restore;
+
+    // Terminating the current process
+    [PROCESS_TABLE + current_pid*16 + 4]=TERMINATED;
+
+    // If system call is not exec (INT 9)
+    if([PROCESS_TABLE + current_pid*16 +9]!=9) then
+        alias it R3;
+        it =0;
+        while( it<16 ) do
+            if([PROCESS_TABLE + it*16 +4]==WAIT_PROCESS && [PROCESS_TABLE + it*16 +5]==current_pid) then
+                [PROCESS_TABLE +it*16 +4]=READY;
+            endif;
+
+            if([PROCESS_TABLE + it*16 +2]==current_pid) then
+                [PROCESS_TABLE + it*16 +2]=-1;
+            endif;
+            it=it+1;
+        endwhile ;
+    endif;
+    return;
+endif;
+
+// FREE PAGE TABLE
+if( function_number == 4 ) then
+    alias page_table_entry R3;
+    page_table_entry = PAGE_TABLE_BASE + current_pid*20;
+    // Invalidate the page table entries for the library
+    [page_table_entry +0]=-1;
+    [page_table_entry +1]="0000";
+    [page_table_entry +2]=-1;
+    [page_table_entry +3]="0000";
+    
+    alias it R4;
+    it=4;
+    while(it<20) do
+        if([page_table_entry +it]!=-1) then 
+            // Release Page
+            backup;
+            R1=2;
+            R2=[page_table_entry+it];
+            call MOD_2 ;
+            restore;
+            [page_table_entry + it] = -1;
+			[page_table_entry + it + 1] = "0000";
+        endif;
+        it=it+2;
+    endwhile;
+
+
+    alias disk_map_table_entry R5;
+    disk_map_table_entry = DISK_MAP_TABLE + current_pid*10;
+    // Checking Heap Swap Blocks
+    it = 2;
+	while(it < 4) do
+		if([disk_map_table_entry + it] != -1) then
+
+            backup;
+			R1 = 4;
+			R2 = [disk_map_table_entry + it];
+			call MOD_2;
+			restore;
+			
+		endif;
+		it = it + 1;
+	endwhile;
+
+    //Checking Stack Swap Blocks
+    it = 8;
+	while(it <= 9) do
+		if([disk_map_table_entry + it] != -1) then
+			backup;
+			R1 = 4;
+			R2 = [disk_map_table_entry + it];
+			call MOD_2;
+			restore;
+		endif;
+		it = it + 1;
+	endwhile;
+	
+	
+
+    // Invalidate all the entries of the disk map table
+    it =0;
+    while (it<10) do 
+        [disk_map_table_entry + it]=-1;
+        it =it +1;
+    endwhile;
+    return;
+endif ;
+
+return;
+

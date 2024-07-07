@@ -1,0 +1,161 @@
+// Load the timer interrpt routine
+loadi(4,17);
+loadi(5,18);
+
+// Load library code
+loadi(63,13);
+loadi(64,14);
+
+
+// Load INT10 module
+loadi(22,35);
+loadi(23,36);
+
+// Load the exception handler routine
+loadi(2, 15);
+loadi(3, 16);
+
+// Load INT7 code
+loadi(16,29);
+loadi(17,30);
+
+// Load init program
+loadi(65,7);
+loadi(66,8);
+
+// Load module 5 schedulling
+loadi(50,63);
+loadi(51,64);
+
+// load module 0 - resource manager
+loadi(40,53);
+loadi(41,54);
+
+// load module 4 - device manager
+loadi(48,61);
+loadi(49,62);
+
+//load console interrupt
+loadi(8,21);
+loadi(9,22);
+
+//load INT 6
+loadi(14,27);
+loadi(15,28);
+
+//load INT 9 Exec 
+loadi(20,33);
+loadi(21,34);
+
+//load module 1
+loadi(42,55);
+loadi(43,56);
+
+//load module 2
+loadi(44,57);
+loadi(43,58);
+
+
+//load inode table
+loadi(59,3);
+loadi(60,4);
+
+//load disk interrupt
+loadi(6,19);
+loadi(7,20);
+
+
+
+// INIT PROGRAM
+
+PTBR = PAGE_TABLE_BASE +20;
+PTLR = 10;
+
+// Page Table entry for init Program
+
+// Library
+[PTBR+0] = 63;
+[PTBR+1] = "0100";
+[PTBR+2] = 64;
+[PTBR+3] = "0100";
+
+// Heap
+[PTBR+4] = 78;
+[PTBR+5] = "0110";
+[PTBR+6] = 79;
+[PTBR+7] = "0110";
+
+// Code
+[PTBR+8] = 65;
+[PTBR+9] = "0100";
+[PTBR+10] = 66;
+[PTBR+11] = "0100";
+[PTBR+12] = -1;
+[PTBR+13] = "0000";
+[PTBR+14] = -1;
+[PTBR+15] = "0000";
+
+//Stack
+[PTBR+16] = 76;
+[PTBR+17] = "0110";
+[PTBR+18] = 77;
+[PTBR+19] = "0110";
+
+
+// Process Table Entry for init Program
+[PROCESS_TABLE +17] = 1; //PID
+[PROCESS_TABLE +20] = CREATED;
+[PROCESS_TABLE + 26] = 80; // User Area Page Number
+[PROCESS_TABLE + 29] = 8*512;
+[PROCESS_TABLE + 28] = 0;
+[PROCESS_TABLE + 30] = PTBR;
+[PROCESS_TABLE + 31] = PTLR;
+
+//  Entry point IP value for INIT program stored to top of the stack
+[76*512] = [65*512 + 1];
+
+
+// Setting all other process to terminated
+[PROCESS_TABLE + 36] = TERMINATED;
+[PROCESS_TABLE + 52] = TERMINATED;
+[PROCESS_TABLE + 68] = TERMINATED;
+[PROCESS_TABLE + 84] = TERMINATED;
+[PROCESS_TABLE + 100] = TERMINATED;
+[PROCESS_TABLE + 116] = TERMINATED;
+[PROCESS_TABLE + 132] = TERMINATED;
+[PROCESS_TABLE + 148] = TERMINATED;
+[PROCESS_TABLE + 164] = TERMINATED;
+[PROCESS_TABLE + 180] = TERMINATED;
+[PROCESS_TABLE + 196] = TERMINATED;
+[PROCESS_TABLE + 212] = TERMINATED;
+[PROCESS_TABLE + 228] = TERMINATED;
+[PROCESS_TABLE + 244] = TERMINATED;
+
+// Intializing some variables
+alias it R1;
+it = 0;
+
+while(it < 83) do
+	[MEMORY_FREE_LIST + it] = 1;
+	it = it + 1;
+endwhile;
+
+while(it < 128) do
+	[MEMORY_FREE_LIST + it] = 0;
+	it = it + 1;
+endwhile;
+
+[SYSTEM_STATUS_TABLE + 3] = 0;
+[SYSTEM_STATUS_TABLE + 2] = 45;
+[TERMINAL_STATUS_TABLE]=0;
+[DISK_STATUS_TABLE + 0] = 0;
+
+// PER-RESOURCE TABLE
+alias iter R0;
+iter = 0;
+while(iter < 16) do
+	[(81 * 512) - 16 + iter] = -1;
+	iter = iter + 1;
+endwhile;
+
+return;

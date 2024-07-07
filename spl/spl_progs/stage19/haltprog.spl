@@ -1,0 +1,26 @@
+alias current_pid R0;
+current_pid = [SYSTEM_STATUS_TABLE + 1];
+
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + current_pid*16;
+
+[process_table_entry + 4] = TERMINATED;
+
+alias pno R2;
+alias check R3;
+check=-1;
+pno=0;
+
+while(pno<16) do
+    process_table_entry = PROCESS_TABLE + pno*16;
+    if([process_table_entry + 4]!=TERMINATED) then
+        check=1;
+    endif;
+    pno=pno+1;
+endwhile;
+
+if(check==-1) then
+    halt;
+endif;
+
+call MOD_5;

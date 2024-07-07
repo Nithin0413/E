@@ -1,0 +1,101 @@
+// MODULE 4
+//print "MOD 4";
+alias functionNum R1;
+alias currentPID R2;
+
+
+// DISK STORE
+if( functionNum == 1 ) then
+	alias pageNum R3;
+	alias blockNum R4;
+	
+	multipush(R1,R2,R3,R4);
+	R1 = 3;
+	call MOD_0;
+	multipop(R1,R2,R3,R4);
+	
+	[DISK_STATUS_TABLE + 1] = 1;
+	[DISK_STATUS_TABLE + 2] = pageNum;
+	[DISK_STATUS_TABLE + 3] = blockNum;
+	
+	store(pageNum,blockNum);
+	
+	[PROCESS_TABLE + currentPID*16 + 4] = WAIT_DISK;
+	
+	multipush(R1,R2,R3,R4);
+	call MOD_5;
+	multipop(R1,R2,R3,R4);
+	
+	return;	
+endif ;
+
+// DISK LOAD 
+if( functionNum ==2 ) then
+	//print "disk_load";
+	alias page_no R3;
+	alias block_no R4;
+	multipush(R1,R2,R3,R4);
+	R1=3;
+	call MOD_0;
+	multipop(R1,R2,R3,R4);
+	// Updating Disk Status Table
+	[DISK_STATUS_TABLE+1]=0;
+	[DISK_STATUS_TABLE + 2]= page_no;
+	[DISK_STATUS_TABLE + 3]= block_no;
+
+	// Load operation
+	breakpoint;
+	load(page_no,block_no);
+	[PROCESS_TABLE + (currentPID * 16) + 4] = WAIT_DISK;
+	multipush(R1,R2,R3,R4);
+	call MOD_5;
+	multipop(R1,R2,R3,R4);
+	return;
+endif ;
+
+//TERMINAL WRITE
+if(functionNum == 3) then
+	alias word R3;
+	multipush(R1,R2,R3);
+	R1 = 8;
+	R2 = currentPID;
+	call MOD_0;
+	multipop(R1,R2,R3);
+	
+	print R3;
+	
+	multipush(R1,R2,R3);
+	R1 = 9;
+	R2 = currentPID;
+	call MOD_0;
+	multipop(R1, R2,R3);
+	return;
+endif;
+
+//TERMINAL READ
+if(functionNum == 4) then
+	alias word_adr R3;
+	multipush(R1,R2,R3);
+	R1 = 8;
+	R2 = currentPID;
+	call MOD_0;
+	multipop(R1,R2,R3);
+	
+    //print "read";
+	read;
+	
+	[PROCESS_TABLE + (currentPID * 16) + 4] = WAIT_TERMINAL;
+	
+	multipush(R1,R2,R3);
+	call MOD_5;
+	multipop(R1,R2,R3);
+	
+	alias physicalAddr R4;
+	physicalAddr = [PTBR + 2 * ((R3)/512)] * 512 + (R3)%512;
+	// saving word from input buffer in PT to return address
+	[physicalAddr] = [PROCESS_TABLE + (currentPID * 16) + 8];
+	return;
+endif;
+
+
+return;

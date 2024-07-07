@@ -1,0 +1,49 @@
+// MODULE 2
+//print "MOD 2";
+alias function_number R1; //Argument
+
+// Get Free Page
+if( function_number == 1) then
+    [SYSTEM_STATUS_TABLE +4]=[SYSTEM_STATUS_TABLE +4]+1;
+    while([SYSTEM_STATUS_TABLE +2]==0) do
+        [PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 4]=WAIT_MEM;
+        call MOD_5;
+    endwhile;
+
+    [SYSTEM_STATUS_TABLE +4]=[SYSTEM_STATUS_TABLE +4]-1;
+    [SYSTEM_STATUS_TABLE +2]=[SYSTEM_STATUS_TABLE +2]-1;
+
+    alias it R2;
+    it=0;
+    while(it<128) do
+        if([MEMORY_FREE_LIST +it]==0) then
+            R0=it;
+            [MEMORY_FREE_LIST +it]=1;
+            break;
+        endif;
+        it=it+1;
+    endwhile;
+    return;
+endif;
+
+// Release Page
+if( function_number ==  2) then
+    alias page_num R2; // Argument
+
+    // Decrementing MEMORY_FREE_LIST entry of releasing page 
+    [MEMORY_FREE_LIST + page_num]=[MEMORY_FREE_LIST + page_num]-1;
+
+    if( [MEMORY_FREE_LIST + page_num]==0 ) then
+        [SYSTEM_STATUS_TABLE +2]=[SYSTEM_STATUS_TABLE +2]+1;
+         alias it R3;
+        it = 0;
+        while(it < 16) do
+            if([PROCESS_TABLE + (it * 16) + 4] == WAIT_MEM) then
+                [PROCESS_TABLE + (it * 16) + 4] = READY;
+            endif;
+            it = it + 1;
+        endwhile;
+    endif ;
+    return;
+endif ;
+return;

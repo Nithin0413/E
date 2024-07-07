@@ -1,0 +1,99 @@
+//print "INT 13";
+
+alias current_pid R1;
+alias system_call R2;
+alias UserSP R3;
+
+current_pid = [SYSTEM_STATUS_TABLE +1];
+UserSP = SP;
+[PROCESS_TABLE +current_pid*16 +13]=SP;
+SP=[PROCESS_TABLE +current_pid*16 +11]*512 -1;
+system_call = [[PTBR + 2*(UserSP -5)/512]*512 + (UserSP-5)%512];
+
+// SEMGET SYSTEM CALL 
+if (system_call == 17) then
+    [PROCESS_TABLE + current_pid * 16 + 9] = 17;
+	
+	alias UserArea R4;
+	alias it R5;
+	
+	UserArea = [PROCESS_TABLE + current_pid* 16 + 11];
+	
+	it = 0;
+	while( it < 16 && [(UserArea) * 512 + 496 + it] != - 1) do
+		it = it + 2;
+	endwhile;
+	
+	
+	if(it == 16) then
+		[[PTBR + 2 * ((UserSP - 1)/512)] * 512 + ((UserSP - 1)%512)] = -1;
+		
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 9] = 0;
+		SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+		ireturn;
+	endif;
+	
+	alias perProcessTable R6;
+	perProcessTable = (UserArea) * 512 + 496 + it;
+	
+	//Resource Identifier
+	[perProcessTable] = 1; //indicates that resource is a semaphore
+	
+	multipush(R1,R2,R3,R4,R5,R6);
+	R1 = 6;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6); 
+	
+	if(R0 == -1) then
+		[[PTBR + 2 * ((UserSP - 1)/512)] * 512 + ((UserSP - 1)%512)] = -2;
+		
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 9] = 0;
+		SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+		ireturn;
+	endif;
+	
+	//Index of semaphore
+	[perProcessTable + 1] = R0;
+	
+	
+	[[PTBR + 2 * ((UserSP - 1)/512)] * 512 + ((UserSP - 1)%512)] = (it/2);
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 9] = 0;
+	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+	ireturn;
+endif;
+
+// SEMRELEASE SYSTEM CALL
+if( system_call == 18 ) then
+    [PROCESS_TABLE + current_pid*16 +9]=18;
+
+    alias UserArea R4;
+    alias sem_desc R5;
+    UserArea = [PROCESS_TABLE + current_pid*16 +11];
+    sem_desc = [[PTBR + 2*(UserSP-4)/512]*512 +(UserSP-1)%512];
+
+    // IF semaphore descriptor is invalid
+    if( sem_desc > 7 || sem_desc < 0 || [(UserArea + 1) * 512+496 + 2*sem_desc] == - 1) then
+		[[PTBR + 2 * ((UserSP - 1)/512)] * 512 + ((UserSP - 1)%512)] = -1;
+		[PROCESS_TABLE + (current_pid* 16) + 9] = 0;
+		SP = [PROCESS_TABLE + (current_pid * 16) + 13];
+		ireturn;
+	endif;
+
+    multipush(R1,R2,R3,R4,R5,R6);
+	R1 = 7;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = [(UserArea) * 512 + 496 + 2*sem_desc + 1 ];
+    call MOD_0;
+	multipop(R1,R2,R3,R4,R5,R6);
+    
+    [(UserArea + 1) * 512 - 16 + 2*sem_desc] = -1;
+	
+	[[PTBR+ 2 * ((UserSP - 1)/512)] * 512 + ((UserSP - 1)%512)] = 0;
+	[PROCESS_TABLE + (current_pid* 16) + 9] = 0;
+	SP = [PROCESS_TABLE + (current_pid * 16) + 13];
+	ireturn;
+endif ;
+
+SP = [PROCESS_TABLE + (current_pid * 16) + 13];
+ireturn;

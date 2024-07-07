@@ -1,0 +1,97 @@
+print "Exhandler";
+alias current_pid R1;
+alias process_table_entry R2;
+alias UserSP R3;
+
+current_pid = [SYSTEM_STATUS_TABLE +1];
+print "pid:";
+print current_pid;
+process_table_entry = PROCESS_TABLE + current_pid*16;
+// Chaning Mode Flag of current process 
+[process_table_entry + 9]=-1;
+
+// Storing current value of User Stack
+[process_table_entry + 13]=SP;
+UserSP = SP;
+
+// Changing to Kernal Stack
+SP = [process_table_entry +11]*512 -1;
+
+backup;
+multipush(EIP);
+
+// if execption is other than page fault or user stack is full
+if( EC!=0 ||  SP==(PTLR*512-1)) then
+    print "SORRY";
+    print "ILLEGAL :";
+    if(EC == 1) then
+		print "INSTRUCTION";
+		print EIP;
+	else
+		if(EC == 2) then
+			print "MEMORY";
+			print EMA;
+		else
+			print "ARITH";
+		endif;
+	endif;
+
+    multipush(R1,R2,R3);
+	R1 = 3;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_1;
+	multipop(R1,R2,R3); 
+
+	call MOD_5;
+    return;
+endif ;
+
+alias page_table_entry R4;
+page_table_entry = [PAGE_TABLE_BASE +current_pid*20];
+//print page_table_entry;
+//print PTBR;
+// IF Page Fault is occured due to Code Page
+if( EPN>=4 && EPN <=7 ) then
+    // Caling Get Code Fucntion
+    multipush(R1,R2,R3,R4);
+    R1 = 5;
+    R2 = EPN;
+    call MOD_2;
+    multipop(R1,R2,R3,R4);
+
+    alias page_num R5;
+    page_num=R0;
+    [page_table_entry +2*EPN]=page_num;
+    [page_table_entry +2*EPN + 1]="1110";
+endif ;
+
+// IF Page Fault is occured due to Heap Page
+if( EPN>=2 && EPN<=3 ) then
+    alias it R5;
+    it =4;
+    while(it<=6) do
+        // calling Get Free Page function 
+        multipush(R1,R2,R3,R4,R5);
+        R1=1;
+        call MOD_2;
+        multipop(R1,R2,R3,R4,R5);
+
+        [page_table_entry + it]=R0;
+        [page_table_entry +it +1]="1110";
+
+        it=it+2;
+    endwhile;
+endif ;
+
+
+// Reseting the mode Flag
+[page_table_entry + 9]=0;
+
+// Restoring the user register context
+multipop(EIP);
+restore;
+
+SP=[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+SP = SP + 1;
+[[PTBR + 2*((SP)/512)]*512 + ((SP)%512)] = EIP;
+ireturn;

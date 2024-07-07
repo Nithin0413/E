@@ -1,0 +1,72 @@
+// obtaining  current pid of the process
+alias current_pid R0;
+current_pid = [SYSTEM_STATUS_TABLE+1];
+
+//pushing BP to the stack
+multipush(BP);
+
+// saving SP, PTBR and PTLR
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + current_pid * 16;
+
+[process_table_entry + 12] = SP % 512;
+[process_table_entry + 14] = PTBR;
+[process_table_entry + 15] = PTLR;
+
+// Finding next ready or created process
+alias pno R2;
+alias new_pid R3;
+pno = current_pid+1;
+new_pid =-1;
+
+while(pno<16) do
+    process_table_entry = PROCESS_TABLE + pno* 16;
+    if([(process_table_entry + 4)]==READY || [(process_table_entry + 4)]==CREATED) then
+        new_pid=pno;
+        break;
+    endif;
+    pno=pno+1;
+endwhile;
+
+if(new_pid==-1) then
+    pno=0;
+    while(pno<current_pid) do
+        process_table_entry = PROCESS_TABLE + pno* 16;
+        if([(process_table_entry + 4)]==READY || [(process_table_entry + 4)]==CREATED) then
+            new_pid=pno;
+            break;
+        endif;
+        pno=pno+1;
+    endwhile;
+endif;
+
+
+// if no ready or created process is present then 
+if(new_pid ==-1) then
+    new_pid=0;
+endif ;
+breakpoint;
+process_table_entry = PROCESS_TABLE + new_pid* 16;
+
+// restore SP, PTBR and PTLR
+SP = [process_table_entry+11]*512 + [process_table_entry+12];
+PTBR = [process_table_entry + 14];
+PTLR = [process_table_entry + 15];
+
+// updating system status table entry
+[SYSTEM_STATUS_TABLE +1]=new_pid;
+
+// case 1 - if new process is in CREATED state 
+if([process_table_entry + 4]==CREATED) then
+    SP = [process_table_entry + 13];
+    [process_table_entry + 4] = RUNNING;
+    [process_table_entry + 9] = 0;
+    ireturn;
+endif;
+
+// case 2 - if new process is not in CREATED state
+[process_table_entry + 4] = RUNNING;
+
+multipop(BP);
+
+return;

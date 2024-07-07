@@ -1,0 +1,182 @@
+alias parent_process_table R1;
+alias parent_pid R2;
+alias child_pid R3;
+alias parent_page_table R4;
+alias child_process_table R5;
+alias child_page_table R6;
+
+
+//print "INT8";
+
+parent_pid = [SYSTEM_STATUS_TABLE +1];
+parent_process_table = PROCESS_TABLE + parent_pid*16;
+
+//Mode Flag
+[parent_process_table + 9]=8;
+
+//Switch to Kernel Stack
+[parent_process_table + 13]=SP;
+SP=[parent_process_table + 11]*512 -1;
+
+//Allocate memory and set the Process Table - GET PCB function
+multipush(R1,R2,R3,R4,R5,R6);
+R1= 1;
+call MOD_1;
+multipop(R1,R2,R3,R4,R5,R6);
+
+
+// If no free Procee Table is found
+if(R0==-1) then 
+    [parent_process_table +9]=0;
+    SP=[parent_page_table +13];
+    ireturn;
+endif;
+
+
+child_pid = R0;
+child_process_table = PROCESS_TABLE + child_pid*16;
+child_page_table = PAGE_TABLE_BASE + child_pid*20;
+// If Heap pages are not allocated to parent process
+parent_page_table = PTBR;
+if([parent_page_table + 4]==-1) then
+    // Calling Get Free Page
+    multipush(R1,R2,R3,R4,R5,R6);
+    R1 = 1;
+    call MOD_2;
+    multipop(R1,R2,R3,R4,R5,R6);
+
+    [parent_page_table + 4]=R0;
+    [parent_page_table + 5]="1110";
+endif;
+
+if([parent_page_table + 6]==-1) then
+    // Calling Get Free Page
+    multipush(R1,R2,R3,R4,R5,R6);
+    R1 = 1;
+    call MOD_2;
+    multipop(R1,R2,R3,R4,R5,R6);
+
+    [parent_page_table + 6]=R0;
+    [parent_page_table + 7]="1110";
+endif;
+
+//Alocating stack pages to child process
+multipush(R1,R2,R3,R4,R5,R6);
+R1=1;
+call MOD_2;
+multipop(R1,R2,R3,R4,R5,R6);
+
+[child_page_table + 16]=R0;
+[child_page_table + 17]="0110";
+
+multipush(R1,R2,R3,R4,R5,R6);
+R1=1;
+call MOD_2;
+multipop(R1,R2,R3,R4,R5,R6);
+
+[child_page_table + 18]=R0;
+[child_page_table + 19]="0110";
+
+//Allocating User Area Page Child Process
+multipush(R1,R2,R3,R4,R5,R6);
+R1=1;
+call MOD_2;
+multipop(R1,R2,R3,R4,R5,R6);
+
+
+// Intialization of Process Table of  Child Process
+[child_process_table + 3]=[parent_process_table + 3]; // User ID
+[child_process_table + 6]=[parent_process_table + 6]; // Swap Flag
+[child_process_table + 10]=[parent_process_table + 10]; // Swap Status Field
+[child_process_table + 7]=[parent_process_table + 7]; // Inode Index
+[child_process_table + 13]=[parent_process_table + 13]; // UPTR
+
+[child_process_table+ 0] = 0; // Tick
+[child_process_table + 9] = 0; // Mode Flag
+[child_process_table + 12] = 0; // KPTR
+
+[child_process_table + 2] = parent_pid; // Parent PID
+[child_process_table + 4] = CREATED; // State 
+[child_process_table + 11]=R0; // User Area Page Obtained from above
+
+// Intialization of Resource Table of Child Process
+alias it R7;
+it =0;
+while(it < 16) do
+	[(([child_process_table + 11] + 1) * 512 ) - 16 + it] = [(([parent_process_table + 11] + 1) * 512 ) - 16 + it];
+	it = it + 1;
+endwhile;
+
+// Intialization of Disk Map Table of Child process
+it =0;
+while(it<10) do
+    [(DISK_MAP_TABLE + child_pid*10) +it]=[(DISK_MAP_TABLE + parent_pid*10) +it];
+    it=it+1;
+endwhile;
+
+// Intialization of Page Tabe of Child Process
+
+    // Library
+[child_page_table + 0]=[parent_page_table +0];
+[child_page_table + 1]=[parent_page_table +1];
+[child_page_table + 2]=[parent_page_table +2];
+[child_page_table + 3]=[parent_page_table +3];
+
+    // Heap
+[child_page_table + 4]=[parent_page_table +4];
+[child_page_table + 5]=[parent_page_table +5];
+[child_page_table + 6]=[parent_page_table +6];
+[child_page_table + 7]=[parent_page_table +7];
+
+    //Code
+[child_page_table + 8]=[parent_page_table +8];
+[child_page_table + 9]=[parent_page_table +9];
+[child_page_table + 10]=[parent_page_table +10];
+[child_page_table + 11]=[parent_page_table +11];
+[child_page_table + 12]=[parent_page_table +12];
+[child_page_table + 13]=[parent_page_table +13];
+[child_page_table + 14]=[parent_page_table +14];
+[child_page_table + 15]=[parent_page_table +15];
+
+    //Stack - Already Done
+
+// Incrementing Memory Free List of shared pages
+it =0;
+while(it<=14) do
+    if([child_page_table +it]!=-1) then
+        [MEMORY_FREE_LIST + [child_page_table +it]] = [MEMORY_FREE_LIST + [child_page_table +it]] +1;
+    endif;
+    it =it +2;
+endwhile;
+
+
+// Copying Stack
+alias count R8;
+count = 0;
+it=0;
+while(count <2) do
+    while(it<512) do
+        [[child_page_table + 16 + 2*count]*512 + it]=[[parent_page_table + 16 + 2*count]*512 + it];
+        it =it+1;
+    endwhile;
+    it=0;
+    count=count+1;
+endwhile;
+
+//setting BP value to top of child kernel stack
+[[child_process_table + 11] * 512] = BP;
+
+
+// Parent Return value
+alias parent_ret R9;
+parent_ret = [parent_process_table + 13] -1;
+[[parent_page_table + 2*(parent_ret/512)]*512 +((parent_ret)%512)]=child_pid;
+
+// Child Return value
+alias child_ret R9;
+child_ret = [child_process_table + 13]-1;
+[[child_page_table + 2*(child_ret)/512]*512 +((child_ret)%512)]=0;
+
+[parent_process_table + 9] = 0;
+SP = [parent_process_table + 13];
+ireturn;

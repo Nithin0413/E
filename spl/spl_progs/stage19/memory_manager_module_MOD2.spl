@@ -1,0 +1,105 @@
+// MODULE 2
+//print "MOD 2";
+alias function_number R1; //Argument
+
+// GET FREE PAGE
+if( function_number == 1) then
+    [SYSTEM_STATUS_TABLE +4]=[SYSTEM_STATUS_TABLE +4]+1;
+    while([SYSTEM_STATUS_TABLE +2]==0) do
+        [PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 4]=WAIT_MEM;
+        call MOD_5;
+    endwhile;
+
+    [SYSTEM_STATUS_TABLE +4]=[SYSTEM_STATUS_TABLE +4]-1;
+    [SYSTEM_STATUS_TABLE +2]=[SYSTEM_STATUS_TABLE +2]-1;
+
+    alias it R2;
+    it=0;
+    while(it<128) do
+        if([MEMORY_FREE_LIST +it]==0) then
+            [MEMORY_FREE_LIST +it]=1;
+            break;
+        endif;
+        it=it+1;
+    endwhile;
+    R0=it;
+    return;
+endif;
+
+// Release Page
+if( function_number ==  2) then
+    alias page_num R2; // Argument
+
+    // Decrementing MEMORY_FREE_LIST entry of releasing page 
+    [MEMORY_FREE_LIST + page_num]=[MEMORY_FREE_LIST + page_num]-1;
+
+    if( [MEMORY_FREE_LIST + page_num]==0 ) then
+        [SYSTEM_STATUS_TABLE +2]=[SYSTEM_STATUS_TABLE +2]+1;
+         alias it R3;
+        it = 0;
+        while(it < 16) do
+            if([PROCESS_TABLE + (it * 16) + 4] == WAIT_MEM) then
+                [PROCESS_TABLE + (it * 16) + 4] = READY;
+            endif;
+            it = it + 1;
+        endwhile;
+    endif ;
+    return;
+endif ;
+
+//GET CODE PAGE
+if(function_number == 5) then
+
+	alias blockNum R2; //Argument
+	
+	alias iter R3;
+	alias iter2 R4;
+	alias disk_map_table_entry R5;
+	alias page_table_entry R6;
+	
+	
+	iter = 0;
+	while(iter < MAX_PROC_NUM) do
+		disk_map_table_entry = DISK_MAP_TABLE + iter * 10;
+		page_table_entry = [PROCESS_TABLE + (iter * 16) + 14];
+        // Traversing inside a Disk table entry of a process
+		iter2 = 4;
+		while(iter2 < 8) do
+			if([disk_map_table_entry + iter2] == blockNum && [page_table_entry + iter2*2] != -1) then
+				R0 = [page_table_entry + iter2*2];
+				[MEMORY_FREE_LIST + R0] = [MEMORY_FREE_LIST + R0] + 1;
+				return;
+			endif;
+			iter2 = iter2 + 1;
+		endwhile;
+			
+		
+		
+		iter = iter + 1;
+	endwhile;
+	
+	
+	multipush(R1,R2,R3,R4,R5,R6);
+	R1 = 1;
+	call MOD_2;
+	multipop(R1,R2,R3,R4,R5,R6);
+	
+	//Calling disk load
+	multipush(R0,R1,R2,R3,R4,R5,R6);
+	R4 = R2;
+	R3 = R0;
+	R1 = 2;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	call MOD_4;
+	multipop(R0,R1,R2,R3,R4,R5,R6);
+	
+	return;
+endif;
+
+// RELEASE BLOCK
+if(function_number == 4) then
+    alias blockNum R2;
+    [DISK_FREE_LIST +blockNum] = [DISK_FREE_LIST +blockNum] -1;
+    return ;
+endif;
+return;

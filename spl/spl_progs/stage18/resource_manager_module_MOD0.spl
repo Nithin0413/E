@@ -1,0 +1,56 @@
+// MODULE 0
+//print "MOD 0 called";
+
+alias functionNum R1;
+alias currentPID R2;
+
+// Acquire terminal
+if (functionNum==8) then
+    // Check whether terminal is free in a loop
+    while([TERMINAL_STATUS_TABLE]==1) do
+        [PROCESS_TABLE + currentPID*16 + 4]= WAIT_TERMINAL;
+        multipush(R1,R2);
+        call MOD_5;
+        multipop(R1,R2);
+    endwhile;
+    //print "Terminal_free";
+    [TERMINAL_STATUS_TABLE] = 1;
+	[TERMINAL_STATUS_TABLE+1] = currentPID;
+    return;
+endif;
+
+// Release terminal
+if (functionNum==9) then
+    if([TERMINAL_STATUS_TABLE+1]!=currentPID) then
+        R0 =-1;
+        return;
+    endif;
+    [TERMINAL_STATUS_TABLE]=0;
+    alias pno R0;
+    pno=0;
+    while(pno<16) do
+        if([PROCESS_TABLE + pno*16 +4]==WAIT_TERMINAL) then
+            [PROCESS_TABLE + pno*16 +4]=READY;
+        endif;
+        pno=pno+1;
+    endwhile;
+    // saving the return value 0 indicating successful
+    R0=0;
+    return;
+endif;
+
+//Aquire Disk
+if( functionNum ==3 ) then
+    
+    while([DISK_STATUS_TABLE]==1) do
+        [PROCESS_TABLE +currentPID*16 +4]=WAIT_DISK;
+        multipush(R1,R2);
+        call MOD_5;
+        multipop(R1,R2);
+    endwhile;
+    // locking the Disk
+    [DISK_STATUS_TABLE + 4]=currentPID;
+    [DISK_STATUS_TABLE + 0]=1;
+    return;
+endif ;
+return;

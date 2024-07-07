@@ -1,0 +1,117 @@
+//print "INT14";
+
+
+alias UserSP R1;
+alias system_call R2;
+alias current_pid R3;
+
+current_pid = [SYSTEM_STATUS_TABLE +1];
+[PROCESS_TABLE + (current_pid* 16) + 13] = SP;
+SP = [PROCESS_TABLE + (current_pid* 16) + 11] * 512 - 1;
+UserSP = [PROCESS_TABLE + (current_pid* 16) + 13];
+system_call = [[PTBR + 2 * ((UserSP - 5)/512)] * 512 + ((UserSP - 5)%512)];
+
+// SEMLOCK SYSTEM CALL 
+if(system_call == 19) then
+
+	[PROCESS_TABLE + current_pid* 16 + 9] = 19;
+	
+	alias UserArea R4;
+	alias it R5;
+	alias semDesc R6;
+    alias semid R7;
+    alias sem_process_pid R8;
+	
+	UserArea = [PROCESS_TABLE + (current_pid* 16) + 11];
+	
+	// Resource table index
+	semDesc = [[PTBR + 2 * ((UserSP - 4)/512)] * 512 + ((UserSP - 4)%512)];
+
+    // Semaphore table index
+	semid = [(UserArea)*512 + 496 + 2*semDesc +1];
+
+    // Semaphore Process locked pid
+    sem_process_pid = [SEMAPHORE_TABLE + (semid * 4)];
+
+
+	if( semDesc > 7 || semDesc < 0 || [(UserArea)*512 + 496 + 2*semDesc] == - 1) then
+		[[PTBR + 2 * ((UserSP - 1)/512)] * 512 + ((UserSP - 1)%512)] = -1;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 9] = 0;
+		SP = [PROCESS_TABLE + (current_pid* 16) + 13];
+		ireturn;
+	endif;
+	
+	// If semphore is already locked
+	while([SEMAPHORE_TABLE + (semid * 4)]!= -1 && [SEMAPHORE_TABLE + (semid * 4)] != current_pid) do
+		[PROCESS_TABLE + (current_pid* 16) + 4] = WAIT_SEMAPHORE;
+		[PROCESS_TABLE + (current_pid* 16) + 5] = semid;
+		
+		multipush(R0,R1,R2,R3,R4,R5,R6,R7,R8);
+		call MOD_5;
+		multipop(R0,R1,R2,R3,R4,R5,R6,R7,R8);
+	endwhile;
+	
+	[SEMAPHORE_TABLE + (semid* 4)] = [SYSTEM_STATUS_TABLE + 1];
+	
+	[[PTBR + 2 * ((UserSP - 1)/512)] * 512 + ((UserSP - 1)%512)] = 0;
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 9] = 0;
+	SP = [PROCESS_TABLE + (current_pid* 16) + 13];
+	ireturn;
+	
+endif;
+
+
+// SEMUNLOCK SYSTEM CALL 
+if(system_call == 20) then
+
+	[PROCESS_TABLE + (current_pid* 16) + 9] = 20;
+	
+	alias UserArea R4;
+	alias it R5;
+	alias semDesc R6;
+	
+	UserArea = [PROCESS_TABLE + (current_pid* 16) + 11];
+	
+	
+	semDesc = [[PTBR + 2 * ((UserSP - 4)/512)] * 512 + ((UserSP - 4)%512)];
+	
+	if( semDesc > 7 || semDesc < 0 || [(UserArea + 1) * 512 - 16 + 2*semDesc] == - 1) then
+		[[PTBR + 2 * ((UserSP - 1)/512)] * 512 + ((UserSP - 1)%512)] = -1;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 9] = 0;
+		SP = [PROCESS_TABLE + (current_pid* 16) + 13];
+		ireturn;
+	endif;
+	
+	if([SEMAPHORE_TABLE + ([(UserArea + 1) * 512 - 16 + 2*semDesc + 1] * 4)] != -1) then
+		if([SEMAPHORE_TABLE + ([(UserArea + 1) * 512 - 16 + 2*semDesc + 1] * 4)] != [SYSTEM_STATUS_TABLE + 1]) then
+			[[PTBR + 2 * ((UserSP - 1)/512)] * 512 + ((UserSP - 1)%512)] = -2;
+			[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]* 16) + 9] = 0;
+			SP = [PROCESS_TABLE + (current_pid* 16) + 13];
+			ireturn;
+		endif;
+		
+		
+		[SEMAPHORE_TABLE + ([(UserArea + 1) * 512 - 16 + 2*semDesc + 1] * 4)] = -1;
+		
+		it = 0;
+		while(it < 16) do
+			if([PROCESS_TABLE + it*16 + 4] == WAIT_SEMAPHORE && [PROCESS_TABLE + it*16 + 5] == [(UserArea) * 512 + 496 + 2*semDesc + 1]) then
+				[PROCESS_TABLE + it*16 + 4] = READY;
+			endif;
+			it = it + 1;
+		endwhile;
+		
+	endif;
+	
+	[[PTBR + 2 * ((UserSP - 1)/512)] * 512 + ((UserSP - 1)%512)] = 0;
+	[PROCESS_TABLE + (current_pid* 16) + 9] = 0;
+	SP = [PROCESS_TABLE + (current_pid* 16) + 13];
+	ireturn;
+	
+	
+endif;
+
+
+
+SP = [PROCESS_TABLE + (current_pid* 16) + 13];
+ireturn;

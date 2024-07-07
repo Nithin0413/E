@@ -1,0 +1,141 @@
+// MODULE 1
+//print "MOD 1";
+alias function_number R1;
+alias current_pid R2;
+
+// GET PCB ENTRY 
+if( function_number == 1) then
+    alias it R3;
+    it = 0;
+    while(it <16) do
+        if([PROCESS_TABLE +it*16 + 4]==TERMINATED) then
+            R0=it;
+            break;
+        endif;
+        it=it+1;
+    endwhile;
+    [PROCESS_TABLE + (it * 16) + 1] = it;
+	[PROCESS_TABLE + (it * 16) + 4] = ALLOCATED;
+	[PROCESS_TABLE + (it * 16) + 14] = PAGE_TABLE_BASE + (it * 20);
+	[PROCESS_TABLE + (it * 16) + 15] = 10;
+    return;
+endif;
+
+
+
+
+// FREE USER AREA PAGE
+if( function_number ==2 ) then
+    alias user_area R3;
+    user_area = [PROCESS_TABLE + current_pid*16 +11 ];
+    // Release Page
+    multipush(R1,R2,R3);
+    R1=2;
+    R2=user_area;
+    call MOD_2 ;
+    multipop(R1,R2,R3);
+    return;
+endif ;
+
+// EXIT PROCESS
+if( function_number== 3) then
+    // Free page Table
+    multipush(R1,R2,R3);
+    R1=4;
+    R2=[SYSTEM_STATUS_TABLE +1];
+    call MOD_1 ;
+    multipop(R1,R2,R3);
+
+    //Free User Area Page
+	multipush(R1,R2,R3);
+	R1 = 2;
+    R2=[SYSTEM_STATUS_TABLE +1];
+	call MOD_1; 
+	multipop(R1,R2,R3);
+
+    // Terminating the current process
+    [PROCESS_TABLE + current_pid*16 + 4]=TERMINATED;
+    return;
+endif;
+
+// FREE PAGE TABLE
+if( function_number == 4 ) then
+    alias page_table_entry R3;
+    page_table_entry = PAGE_TABLE_BASE + current_pid*20;
+    // Invalidate the page table entries for the library
+    [page_table_entry +0]=-1;
+    [page_table_entry +1]="0000";
+    [page_table_entry +2]=-1;
+    [page_table_entry +3]="0000";
+    
+    alias it R4;
+    it=4;
+    while(it<20) do
+        if([page_table_entry +it]!=-1) then 
+            // Release Page
+            multipush(R1,R2,R3,R4);
+            R1=2;
+            R2=[page_table_entry+it];
+            call MOD_2 ;
+            multipop(R1,R2,R3,R4);
+            [page_table_entry + it] = -1;
+			[page_table_entry + it + 1] = "0000";
+        endif;
+        it=it+2;
+    endwhile;
+
+    // RELEASE BLOCK
+    alias disk_map_table_entry R5;
+    disk_map_table_entry = DISK_MAP_TABLE +current_pid*10;
+    // Checking for Stack Swap blocks
+    it = 8;
+    while(it < 10) do
+		if([disk_map_table_entry + it] != -1) then
+			multipush(R0,R1,R2,R3,R4,R5);
+			R1 = 4;
+			R2 = [disk_map_table_entry + it];
+			call MOD_2;
+			multipop(R0,R1,R2,R3,R4,R5);	
+		endif;
+		it = it + 1;
+	endwhile;
+
+    // checking for heap swap blocks
+    it = 2;
+    while(it<4) do
+    	if([disk_map_table_entry + it] != -1) then
+			multipush(R0,R1,R2,R3,R4,R5);
+			R1 = 4;
+			R2 = [disk_map_table_entry + it];
+			call MOD_2;
+			multipop(R0,R1,R2,R3,R4,R5);
+			
+		endif;
+		it= it + 1;
+	endwhile;
+
+    //Checking Stack Swap Blocks
+    it = 8;
+	while(it <= 9) do
+		if([disk_map_table_entry + it] != -1) then
+			backup;
+			R1 = 4;
+			R2 = [disk_map_table_entry + it];
+			call MOD_2;
+			restore;
+		endif;
+		it = it + 1;
+	endwhile;
+
+    // Invalidate all the entries of the disk map table
+    it =0;
+    while (it<10) do 
+        [disk_map_table_entry + it]=-1;
+        it =it +1;
+    endwhile;
+    return;
+endif ;
+
+
+return;
+

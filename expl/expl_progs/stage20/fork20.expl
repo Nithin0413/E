@@ -1,0 +1,22 @@
+int main() 
+{
+  decl
+    int pid, temp;
+  enddecl
+
+  begin
+    write("Fork Fucntion");
+    pid = exposcall("Fork");
+
+    // If child process
+    if(pid == 0) then
+      write("Odd Program");
+      temp = exposcall("Exec", "odd.xsm");
+    else // Parent Process
+      write("Even Program");
+      temp = exposcall("Exec", "even.xsm");
+    endif;
+
+    return 0;
+ end
+}

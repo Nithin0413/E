@@ -1,0 +1,19 @@
+int main(){
+
+	decl
+		str name;
+		int temp,perm;
+	enddecl
+	
+	
+	begin
+	
+
+		temp = exposcall("Read",-1,name);
+		temp = exposcall("Create",name,0);
+		
+		return 0;
+	
+	end
+
+}

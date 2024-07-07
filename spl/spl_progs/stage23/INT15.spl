@@ -1,0 +1,56 @@
+alias UserSP R1;
+alias current_pid R2;
+alias process_table_entry R3;
+
+current_pid = [SYSTEM_STATUS_TABLE +1];
+process_table_entry = PROCESS_TABLE + current_pid*16;
+UserSP =SP;
+
+[process_table_entry + 13]=SP;
+SP=[process_table_entry +11]*512 -1;
+[process_table_entry +9]=15;
+// Shutdowning process is not shell or Root User
+if(current_pid !=1 || [process_table_entry +3]!=1) then
+    [[PTBR +2*(UserSP-1)/512]*512 + (UserSP-1)%512]=-1;
+    [process_table_entry +9]=0;
+    SP=[process_table_entry +13];
+    ireturn;
+endif;
+// Storing Updated Inode Table
+multipush(R1,R2,R3);
+R1 = 1;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+R3 = 59;
+R4 = 3;
+call MOD_4;
+multipop(R1,R2,R3);
+
+multipush(R1,R2,R3);
+R1 = 1;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+R3 = 60;
+R4 = 4;
+call MOD_4;
+multipop(R1,R2,R3);
+
+// Storing Updated Root File
+multipush(R1,R2,R3);
+R1 = 1;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+R3 = 62;
+R4 = 5;
+call MOD_4;
+multipop(R1,R2,R3);
+
+//Storing Updated Disk Free List
+multipush(R1,R2,R3);
+R1 = 1;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+R3 = 61;
+R4 = 2;
+call MOD_4;
+multipop(R1,R2,R3);
+print "Exited";
+halt;
+
+

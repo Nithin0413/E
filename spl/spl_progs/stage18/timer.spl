@@ -1,0 +1,35 @@
+// Saving the SP 
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+
+// Switching the user stack to kernal stack
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE +1]*16) + 11]*512-1;
+
+// Backup all user context to kernal stack
+backup;
+
+// Changing state of current process
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE +1]*16) + 4] = READY;
+
+// Increment Tick for every Process 
+alias pno R0;
+pno=0;
+while(pno<=244) do
+    if([PROCESS_TABLE + pno + 4] != TERMINATED) then
+        [PROCESS_TABLE + pno] = [PROCESS_TABLE + pno] +1;
+    endif;
+    pno = pno + 16;
+endwhile;
+
+// call sheduler module
+call MOD_5;
+
+// Restore
+restore;
+
+// SP is updated to new process's stack
+SP = [PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+
+// mode flag to 0
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+
+ireturn;

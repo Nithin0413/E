@@ -1,0 +1,34 @@
+// MODULE 4
+alias functionNum R1;
+alias currentPID R2;
+alias word R3;
+
+if( functionNum ==3 ) then
+    // CALLING AQUIRE TERMINAL
+    multipush(R1,R2,R3);
+    alias fun_no R1;
+    fun_no = 8;
+
+    call MOD_0;
+
+    multipop(R1,R2);
+    print word;
+
+    //CALLING RELEASE TERMINAL
+    multipush(R1,R2,R3);
+    fun_no = 9;
+
+    call MOD_0; 
+
+    //save the return value
+    R7=R0;
+
+    multipop(R1,R2,R3);
+    return;
+
+
+else
+    return;
+endif ;
+
+return;

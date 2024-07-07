@@ -1,0 +1,75 @@
+//print "INT 11";
+
+alias system_call R2;
+alias UserSP R3;
+alias current_pid R4;
+
+UserSP = SP;
+current_pid = [SYSTEM_STATUS_TABLE +1];
+[PROCESS_TABLE +current_pid*16 +13]=SP;
+SP=[PROCESS_TABLE +current_pid*16 +11]*512 -1;
+
+system_call = [[PTBR + 2*(UserSP -5)/512]*512+(UserSP-5)%512];
+
+
+// GETPID SYSTEM CALL 
+if( system_call == 11 ) then
+    [PROCESS_TABLE + current_pid*16 +9]=11;
+    [[PTBR + 2*(UserSP -1)/512]*512+(UserSP-1)%512]=current_pid;
+    [PROCESS_TABLE + current_pid*16 +9]=0;
+endif ;
+
+// GET PPID SYSTEM CALL
+if( system_call == 12 ) then
+    [PROCESS_TABLE + current_pid*16 +9]=12;
+    [[PTBR + 2*(UserSP -1)/512]*512+(UserSP-1)%512]=[PROCESS_TABLE + current_pid*16 +2];
+    [PROCESS_TABLE + current_pid*16 +9]=0;
+endif ;
+
+// WAIT SYSTEM CALL 
+if( system_call == 13 ) then
+    [PROCESS_TABLE + current_pid*16 +9]=13;
+   
+    alias  pid R1; // Argument 
+    pid = [[PTBR + 2*(UserSP -4)/512]*512+(UserSP-4)%512];
+    
+    // If codintion are not valid return to the user
+    if(pid == current_pid || [PROCESS_TABLE +pid*16 +4]== TERMINATED || pid>15) then
+        [[PTBR + 2*(UserSP -1)/512]*512+(UserSP-1)%512] =-1;
+        SP=[PROCESS_TABLE + current_pid*16 +13];
+        [PROCESS_TABLE + current_pid*16 +9]=0;
+        ireturn;
+    endif;
+
+    // If conditions are valid
+    [PROCESS_TABLE +current_pid*16 +4]=WAIT_PROCESS;
+    [PROCESS_TABLE +current_pid*16 +5]=pid;
+
+    multipush(R1,R2,R3,R4);
+    call MOD_5;
+    multipop(R1,R2,R3,R4);
+
+    [[PTBR + 2*(UserSP -1)/512]*512+(UserSP-1)%512] =0;
+    [PROCESS_TABLE + current_pid*16 +9]=0;
+endif ;
+
+// SIGNAL SYSTEM CALL
+if( system_call == 14 ) then
+    [PROCESS_TABLE + current_pid*16 +9]=14;
+
+    alias it R5;
+    it =0;
+    while( it<16 ) do
+        if([PROCESS_TABLE + it*16 +4]==WAIT_PROCESS && [PROCESS_TABLE + it*16 +5]==current_pid) then
+            [PROCESS_TABLE + it*16 +4]=READY;
+         endif;
+         it=it+1;   
+    endwhile ;
+
+    [[PTBR + 2*(UserSP -1)/512]*512+(UserSP-1)%512] =0;
+    [PROCESS_TABLE + current_pid*16 +9]=0;
+endif ;
+
+SP=[PROCESS_TABLE + current_pid*16 +13];
+
+ireturn;
